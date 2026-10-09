@@ -1,0 +1,7 @@
+.next
+node_modules
+.lighthouseci
+test-results
+.env
+*.log
+.DS_Store

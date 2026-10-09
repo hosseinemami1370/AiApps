@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info: { title: AIFolder API, version: 1.0.0, description: "Responses are flattened to one language (?locale=); the backend falls back to English when a translation is missing. Errors use RFC 7807 problem+json. Auth between Next.js and this API: X-Api-Key header." }
+servers: [{ url: "http://localhost:8080/api/v1" }]
+security: [{ ApiKey: [] }]
+components:
+  securitySchemes: { ApiKey: { type: apiKey, in: header, name: X-Api-Key } }
+  parameters:
+    Locale: { name: locale, in: query, schema: { type: string, enum: [en, fa], default: en } }
+  responses:
+    NotFound: { description: Not found, content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+    Invalid: { description: Validation failed, content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+  schemas:
+    Problem:
+      type: object
+      properties: { type: { type: string }, title: { type: string }, status: { type: integer }, detail: { type: string }, errors: { type: array, items: { type: object, properties: { field: { type: string }, message: { type: string } } } } }
+    Category: { type: string, enum: [chat, image, writing, audio, translate] }
+    Pricing: { type: string, enum: [free, freemium, paid] }
+    AppVersion:
+      type: object
+      required: [id, version, releasedAt, sizeMb, sha256, minAndroid, downloads, isLatest, changelog]
+      properties:
+        id: { type: string, example: chatnova-3.0.0 }
+        version: { type: string, example: 3.0.0 }
+        releasedAt: { type: string, format: date-time }
+        sizeMb: { type: number }
+        sha256: { type: string, minLength: 64, maxLength: 64 }
+        minAndroid: { type: string, example: "8.0" }
+        downloads: { type: integer }
+        isLatest: { type: boolean }
+        changelog: { type: string }
+    App:
+      type: object
+      required: [slug, name, category, pricing, rating, developer, tagline, description, features, versions]
+      description: In list/similar responses `versions` contains only the latest version; on the detail endpoint it contains all versions (latest first).
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        category: { $ref: "#/components/schemas/Category" }
+        pricing: { $ref: "#/components/schemas/Pricing" }
+        rating: { type: number }
+        developer: { type: string }
+        hue: { type: integer, minimum: 0, maximum: 359, description: "Optional icon accent (placeholder until iconUrl exists)" }
+        tagline: { type: string }
+        description: { type: string }
+        features: { type: array, items: { type: string } }
+        pros: { type: array, items: { type: string } }
+        cons: { type: array, items: { type: string } }
+        faq: { type: array, items: { type: object, required: [q, a], properties: { q: { type: string }, a: { type: string } } } }
+        versions: { type: array, items: { $ref: "#/components/schemas/AppVersion" } }
+    AppPage:
+      type: object
+      required: [items, total, page, size]
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/App" } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    DownloadLink: { type: object, required: [url], properties: { url: { type: string, format: uri }, expiresAt: { type: string, format: date-time } } }
+    Submission:
+      type: object
+      required: [appName, version, downloadUrl, email, description]
+      properties: { appName: { type: string, minLength: 2, maxLength: 80 }, version: { type: string, pattern: '^\d+(\.\d+){0,3}$' }, downloadUrl: { type: string, format: uri }, email: { type: string, format: email }, description: { type: string, minLength: 20, maxLength: 1000 } }
+    Report:
+      type: object
+      required: [url, name, email, details]
+      properties: { url: { type: string, format: uri }, name: { type: string, minLength: 2, maxLength: 80 }, email: { type: string, format: email }, details: { type: string, minLength: 20, maxLength: 2000 } }
+    Post:
+      type: object
+      required: [slug, date, title, excerpt, body]
+      properties: { slug: { type: string }, date: { type: string, format: date }, title: { type: string }, excerpt: { type: string }, body: { type: array, items: { type: string } } }
+paths:
+  /apps:
+    get:
+      operationId: listApps
+      parameters:
+        - $ref: "#/components/parameters/Locale"
+        - { name: q, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { $ref: "#/components/schemas/Category" } }
+        - { name: pricing, in: query, schema: { $ref: "#/components/schemas/Pricing" } }
+        - { name: sort, in: query, schema: { type: string, enum: [newest, popular], default: newest } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 12 } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AppPage" } } } } }
+  /apps/{slug}:
+    get:
+      operationId: getApp
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Locale" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/App" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /apps/{slug}/similar:
+    get:
+      operationId: getSimilarApps
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Locale" }]
+      responses: { "200": { description: Up to 3 apps, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/App" } } } } } }
+  /apps/{slug}/versions:
+    get:
+      operationId: listVersions
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Locale" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AppVersion" } } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /apps/{slug}/versions/{version}:
+    get:
+      operationId: getVersion
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }, { name: version, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Locale" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AppVersion" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /downloads/{versionId}:
+    post:
+      operationId: createDownload
+      description: Increments the download counter and returns a short-lived signed URL.
+      parameters: [{ name: versionId, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DownloadLink" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /sitemap-data:
+    get:
+      operationId: getSitemapData
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { apps: { type: array, items: { type: object, properties: { slug: { type: string }, versions: { type: array, items: { type: object, properties: { version: { type: string }, releasedAt: { type: string, format: date-time } } } } } } } } } } } } }
+  /posts:
+    get:
+      operationId: listPosts
+      parameters: [{ $ref: "#/components/parameters/Locale" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Post" } } } } } }
+  /posts/{slug}:
+    get:
+      operationId: getPost
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Locale" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Post" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /submissions:
+    post:
+      operationId: createSubmission
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Submission" } } } }
+      responses: { "202": { description: Accepted }, "422": { $ref: "#/components/responses/Invalid" } }
+  /reports:
+    post:
+      operationId: createReport
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Report" } } } }
+      responses: { "202": { description: Accepted }, "422": { $ref: "#/components/responses/Invalid" } }

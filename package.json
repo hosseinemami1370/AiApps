@@ -1,0 +1,29 @@
+{
+  "name": "aifolder",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test:e2e": "playwright test",
+    "test:ssr": "bash scripts/check-ssr.sh",
+    "lighthouse": "npm run build && npx @lhci/cli autorun"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^22",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
